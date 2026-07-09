@@ -25,6 +25,7 @@ const buildSystem3A = (p: Profile, role?: string) => `${stage3aIntro(p)}
 - 각 항목에 '누구에게 물어보면 되는지'를 description에 포함 (WorkMap.people 활용).
 - 신입 눈높이: 업무명만 쓰지 말고 무엇을 하는 일인지 한 줄 설명.
 - relatedId에는 관련된 WorkMap duties/ongoing의 id를 넣는다.
+- 이 로드맵은 인계를 '받는' 신입 후임자의 것이다. "인수인계하라 / 전임자 문서를 소유자로서 업데이트하라 / 후임에게 넘겨라" 같은 항목을 만들지 말 것. 그런 성격이 보이면 후임자가 '받아 익히는' 행위(문서 숙지, 공동 수행 참여, 빠진 절차 구두 확인)로 재정의하거나 관련 실무 항목에 흡수한다.
 
 ${JSON_ONLY_RULE(ROADMAP_TYPE_TEXT)}${roleNote(role)}`;
 
