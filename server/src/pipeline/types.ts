@@ -1,7 +1,8 @@
 // DESIGN.md §3 — 파이프라인 계약서
 
 export type Evidence = {
-  source: 'slack' | 'email' | 'jira' | 'officenote' | 'officechat';
+  // 'interview'는 파이프라인 산출이 아니라 전임자 인터뷰 답변 편입 시 서버가 부여
+  source: 'slack' | 'email' | 'jira' | 'officenote' | 'officechat' | 'interview';
   ref: string;
   quote: string;
 };
@@ -29,7 +30,14 @@ export type SourceFindings = {
 };
 
 export type WorkMap = {
-  person: { name: string; team: string; lastDay: string };
+  person: {
+    name: string;
+    team: string;
+    lastDay: string;
+    // 조직 정보 없이 활동 데이터만으로 추정한 한 줄 담당 업무 (사용자가 PATCH /api/profile로 수정 가능)
+    inferredRole: string;
+    inferredRoleEvidence: Evidence[];
+  };
   duties: {
     id: string;
     title: string;
@@ -114,7 +122,9 @@ type SourceFindings = {
 export const WORK_MAP_TYPE_TEXT = `${EVIDENCE_TYPE_TEXT}
 
 type WorkMap = {
-  person: { name: string; team: string; lastDay: string };  // "2026-07-31"
+  person: { name: string; team: string; lastDay: string;   // lastDay: "2026-07-31"
+            inferredRole: string;                           // 활동 데이터만으로 추정한 한 줄 담당 업무
+            inferredRoleEvidence: Evidence[] };             // 추정 근거 인용
   duties: { id: string; title: string; cadence: { type: 'weekly'|'monthly'|'quarterly'|'adhoc'; detail: string };
             importance: 'high'|'medium'|'low'; summary: string; evidence: Evidence[] }[];
   people: { id: string; name: string; org: string; internal: boolean;

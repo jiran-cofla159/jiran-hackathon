@@ -1,9 +1,12 @@
 import { callLLM, MODELS } from '../llm/adapter.js';
 import type { ParsedSource } from '../parsers/index.js';
+import { DEMO_PROFILE, personLine, type Profile } from './profile.js';
 import { JSON_ONLY_RULE, SOURCE_FINDINGS_TYPE_TEXT, type SourceFindings } from './types.js';
 
-const SYSTEM = `너는 퇴사 예정자의 업무 활동 데이터를 분석해 인수인계에 필요한 지식을 추출하는 분석가다.
-분석 대상자: 김하늘 (플랫폼사업팀 대리, 2026-07-31 퇴사 예정). 오늘: 2026-07-06.
+type SourceStatus = 'waiting' | 'parsing' | 'extracting' | 'done' | 'stuck';
+
+const buildSystem = (p: Profile) => `너는 퇴사 예정자의 업무 활동 데이터를 분석해 인수인계에 필요한 지식을 추출하는 분석가다.
+${personLine.stage1(p)}
 추출 원칙:
 - 반복 패턴(요일·날짜·주기 언급)은 duties로.
 - 사람 이름이 나오면 people로 — 소속, 대상자와의 관계, 커뮤니케이션 팁(연락 방법 선호 등)까지.
@@ -18,17 +21,22 @@ ${JSON_ONLY_RULE(SOURCE_FINDINGS_TYPE_TEXT)}`;
 export async function runStage1(
   parsed: ParsedSource[],
   onProgress?: (detail: string) => void,
+  profile: Profile = DEMO_PROFILE,
+  onSource?: (source: string, status: SourceStatus) => void,
 ): Promise<SourceFindings[]> {
+  const system = buildSystem(profile);
   return Promise.all(
     parsed.map(async (p) => {
       onProgress?.(`${p.stats} 분석 중…`);
+      onSource?.(p.source, 'extracting');
       const out = await callLLM<SourceFindings>({
-        system: SYSTEM,
+        system,
         user: `소스: ${p.source}. 아래는 ${p.source} export 원문이다.\n\n${p.text}`,
         schemaName: `stage1-${p.source}`,
         model: MODELS.stage1,
       });
       out.source = p.source;
+      onSource?.(p.source, 'done');
       return out;
     }),
   );
