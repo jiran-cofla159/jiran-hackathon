@@ -13,6 +13,8 @@ import {
   type ParsedSource,
   type RawDoc,
 } from '../parsers/index.js';
+import { parseEml, parseMbox, type EmailObj } from '../parsers/mbox.js';
+import { parseSlackExport } from '../parsers/slack-export.js';
 import { DEMO_PROFILE, type Profile } from './profile.js';
 
 // 업로드 세션 (인메모리, 단일 세션 — 데모 스코프)
@@ -53,7 +55,41 @@ export function ingestFile(filename: string, buffer: Buffer): IngestResult {
   return ingestCore(filename, buffer);
 }
 
+const addrOf = (s: string) => s.match(/<([^>]+)>/)?.[1] ?? s.trim();
+
 function ingestCore(filename: string, buffer: Buffer): IngestResult {
+  const lower = filename.toLowerCase();
+
+  // Slack workspace export ZIP — 바이너리이므로 utf8 변환 전에 처리
+  if (lower.endsWith('.zip') || (buffer[0] === 0x50 && buffer[1] === 0x4b)) {
+    const { users, channels } = parseSlackExport(buffer);
+    if (!channels.length) throw new Error(`Slack export ZIP에서 채널을 찾지 못했습니다: ${filename}`);
+    state.slackUsers = users;
+    state.slackChannels = channels;
+    const msgCount = channels.reduce((n, c) => n + c.messages.length, 0);
+    return { filename, source: 'slack', detail: `채널 ${channels.length}개 · 메시지 ${msgCount}개` };
+  }
+
+  // 이메일함 export (.mbox — Gmail Takeout 등)
+  if (lower.endsWith('.mbox')) {
+    const parsed = parseMbox(buffer);
+    if (!parsed.emails.length) throw new Error(`메일을 찾지 못했습니다: ${filename}`);
+    state.emails = parsed;
+    return { filename, source: 'email', detail: `메일 ${parsed.emails.length}통` };
+  }
+
+  // 개별 이메일 (.eml) — 여러 건을 누적
+  if (lower.endsWith('.eml')) {
+    const em = parseEml(buffer);
+    if (!em) throw new Error(`이메일을 파싱하지 못했습니다: ${filename}`);
+    const box = state.emails ?? { mailbox: '', exported_at: new Date().toISOString(), emails: [] };
+    box.emails.push(em);
+    box.emails = box.emails.map((e: EmailObj, i: number) => ({ ...e, id: `m-${String(i + 1).padStart(3, '0')}` }));
+    if (!box.mailbox) box.mailbox = addrOf(em.to[0] ?? '') || '(.eml 업로드)';
+    state.emails = box;
+    return { filename, source: 'email', detail: `메일 ${box.emails.length}통` };
+  }
+
   const content = buffer.toString('utf8');
 
   if (filename.endsWith('.md')) {
@@ -75,7 +111,9 @@ function ingestCore(filename: string, buffer: Buffer): IngestResult {
   try {
     data = JSON.parse(content);
   } catch {
-    throw new Error(`지원하지 않는 파일 형식: ${filename} (JSON·CSV·.md만 가능)`);
+    throw new Error(
+      `지원하지 않는 파일 형식: ${filename} (.mbox·.eml·Slack .zip·Jira .csv·.md·JSON만 가능)`,
+    );
   }
 
   if (Array.isArray(data.emails)) {
