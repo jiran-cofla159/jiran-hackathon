@@ -1,13 +1,16 @@
 import type { AnalyzeResult } from '../api';
+import { dDay, type Profile } from '../App';
 import { Badge, Card } from '../ui';
 
-const KIM_STEPS = ['데이터 연동', 'AI 분석', '업무 지도', '인터뷰', '내보내기'];
+const STEPS = ['데이터 연동', 'AI 분석', '업무 지도', '인터뷰', '내보내기'];
 
-export function KimHome({
+export function PredecessorHome({
+  profile,
   result,
   connectedCount,
   onGo,
 }: {
+  profile: Profile;
   result: AnalyzeResult | null;
   connectedCount: number;
   onGo: (screen: 'connect' | 'map' | 'interview') => void;
@@ -16,23 +19,20 @@ export function KimHome({
   const total = result?.questions.length ?? 0;
   // 진행 단계: 연동 전 0 → 연동 1 → 분석 완료 3 → 답변 시작 4 → 전부 답변 5
   const stepDone = !result ? (connectedCount > 0 ? 1 : 0) : answered === 0 ? 3 : answered < total ? 4 : 5;
+  const d = dDay(profile.lastDay);
 
   return (
     <div className="space-y-6">
       <Card className="flex items-center justify-between !p-6">
         <div className="flex items-center gap-4">
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-100 text-2xl font-bold text-indigo-700">
-            김
+            {profile.name.slice(0, 1)}
           </span>
           <div>
-            <div className="text-xl font-bold">
-              김하늘 님, 안녕하세요
-              <span className="ml-2 text-sm font-normal text-neutral-500">대리 · 플랫폼사업팀</span>
-            </div>
-            <div className="text-sm text-neutral-500">파트너사 계약·정산 담당 · 2021년 입사</div>
+            <div className="text-xl font-bold">{profile.name} 님, 안녕하세요</div>
           </div>
         </div>
-        <Badge tone="red">퇴사 예정 D-22 · 2026-07-31</Badge>
+        <Badge tone="red">퇴사 예정 D-{d} · {profile.lastDay}</Badge>
       </Card>
 
       <Card className="!p-8 text-center">
@@ -53,14 +53,14 @@ export function KimHome({
         </div>
         <p className="mx-auto mt-2 max-w-xl text-sm text-neutral-500">
           {stepDone < 3
-            ? '5년간의 메일·Slack·Jira·문서에서 기록된 적 없는 업무 지식까지 AI가 꺼내 후임자의 지도로 만듭니다.'
+            ? '빈 문서 앞에서 막막하셨죠. 당연해서 안 적은 일, 나만 알던 히스토리까지 — 흩어진 메일·메신저·이슈에서 AI가 짚어 인수인계 초안을 대신 만듭니다.'
             : stepDone < 5
-              ? `AI가 어디에도 기록되지 않은 지식 ${total}건을 발견했습니다. ${answered}건 답변 완료 — 답할 때마다 지도에 새 카드가 추가됩니다.`
-              : '후임자 이도현 님이 로드맵과 업무 지도를 열람할 수 있습니다. 인수인계서로 내보낼 수도 있어요.'}
+              ? `기록되지 않은 지식 ${total}건 중 ${answered}건 답변 완료.`
+              : '후임자가 로드맵과 업무 지도를 열람할 수 있습니다.'}
         </p>
 
         <div className="mx-auto mt-7 flex w-fit items-center">
-          {KIM_STEPS.map((s, i) => (
+          {STEPS.map((s, i) => (
             <div key={s} className="flex items-center">
               {i > 0 && <div className={`h-0.5 w-10 ${i < stepDone ? 'bg-indigo-400' : 'bg-neutral-200'}`} />}
               <div className="flex flex-col items-center gap-1.5 px-1">
@@ -102,7 +102,7 @@ export function KimHome({
   );
 }
 
-export function LeeHome({
+export function SuccessorHome({
   result,
   onGo,
 }: {
@@ -111,33 +111,30 @@ export function LeeHome({
 }) {
   const urgent = result?.roadmap.filter((r) => r.week === 0).length ?? 0;
   const answered = result?.questions.filter((q) => q.answer).length ?? 0;
+  const predecessor = result?.workMap.person.name;
 
   return (
     <div className="space-y-6">
       <Card className="flex items-center justify-between !p-6">
         <div className="flex items-center gap-4">
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl font-bold text-emerald-700">
-            이
+            🌱
           </span>
           <div>
-            <div className="text-xl font-bold">
-              이도현 님, 안녕하세요
-              <span className="ml-2 text-sm font-normal text-neutral-500">사원 · 플랫폼사업팀</span>
-            </div>
-            <div className="text-sm text-neutral-500">입사 8일차</div>
+            <div className="text-xl font-bold">새 업무 온보딩</div>
           </div>
         </div>
-        <Badge tone="indigo">김하늘 님 업무 인계 중</Badge>
+        {predecessor && <Badge tone="indigo">{predecessor} 님 업무 인계 중</Badge>}
       </Card>
 
       {result ? (
         <Card className="!p-8 text-center">
           <div className="text-2xl font-bold">
-            김하늘 님의 <span className="text-indigo-600">업무 지식이 준비되어 있습니다</span>
+            {predecessor} 님의 <span className="text-indigo-600">업무 지식이 준비되어 있습니다</span>
           </div>
           <p className="mx-auto mt-2 max-w-xl text-sm text-neutral-500">
-            AI가 5년치 활동 데이터에서 만든 온보딩 로드맵을 따라가세요. 전임자 인터뷰로 채워진
-            지식에는 <b>인터뷰 답변</b> 배지가 붙어 있습니다.
+            <b className="font-semibold text-neutral-700">온보딩 로드맵</b>은 <b>언제 무엇부터</b> 할지 시간 순 실행 계획,{' '}
+            <b className="font-semibold text-neutral-700">업무 지도</b>는 <b>무엇을 맡는지</b> 담당 업무·관계자 전체 그림입니다.
           </p>
           <div className="mt-6 flex justify-center gap-8">
             {[
@@ -159,10 +156,10 @@ export function LeeHome({
         </Card>
       ) : (
         <Card className="!p-10 text-center">
-          <div className="text-3xl">⏳</div>
-          <div className="mt-3 text-lg font-semibold">아직 인계받을 내용이 없습니다</div>
+          <div className="text-3xl">🔒</div>
+          <div className="mt-3 text-lg font-semibold">이 계정으로 공유된 인수인계가 없습니다</div>
           <p className="mt-1 text-sm text-neutral-500">
-            김하늘 님이 데이터 연동과 분석을 마치면 이곳에 온보딩 로드맵이 나타납니다.
+            전임자가 업무 지도를 검토한 뒤 이 이메일로 공유하면, 이곳에 온보딩 로드맵이 나타납니다.
           </p>
         </Card>
       )}

@@ -1,13 +1,14 @@
 // 서버 pipeline/types.ts 계약 미러
 
 export type Evidence = {
-  source: 'slack' | 'email' | 'jira' | 'officenote' | 'officechat';
+  source: 'slack' | 'email' | 'jira' | 'officenote' | 'officechat' | 'interview';
   ref: string;
   quote: string;
 };
 
 export type WorkMap = {
-  person: { name: string; team: string; lastDay: string };
+  // inferredRole: 서버가 추정 역할을 내려주면 사용, 없으면 클라이언트가 team으로 폴백
+  person: { name: string; team: string; lastDay: string; inferredRole?: string };
   duties: {
     id: string;
     title: string;
@@ -99,11 +100,31 @@ export type JobStatus = {
   stageDetail: string;
   error?: string;
   result?: AnalyzeResult;
+  // 서버가 진행이 멈췄다고 판단하면 true (없으면 클라이언트가 경과 시간으로 백업 판정)
+  stuck?: boolean;
 };
 
-export async function startAnalyze(): Promise<string> {
-  const res = await fetch('/api/analyze', { method: 'POST' });
+// purgeOriginals: 분석 완료 후 원문 파일 삭제 요청 — 서버(세션 ①)가 body를 아직 안 읽어도 무해
+// profile: 입력한 전임자 이름/퇴사일 — 서버가 없으면 DEMO_PROFILE(김하늘)로 폴백하므로 함께 전달
+export async function startAnalyze(
+  purgeOriginals: boolean,
+  profile?: { name: string; lastDay: string },
+): Promise<string> {
+  const res = await fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profile ? { purgeOriginals, profile } : { purgeOriginals }),
+  });
   return (await res.json()).jobId;
+}
+
+// 새 전임자 로그인 시 서버 세션을 새 분석으로 격리 — 미구현/실패여도 데모 흐름은 계속
+export async function resetSession(): Promise<void> {
+  try {
+    await fetch('/api/session/reset', { method: 'POST' });
+  } catch {
+    // 서버 미기동/미구현이어도 클라이언트 초기화만으로 데모 진행
+  }
 }
 
 export async function pollJob(jobId: string): Promise<JobStatus> {
@@ -129,8 +150,18 @@ export async function saveAnswer(
   return {};
 }
 
-// 파일 업로드 — /api/upload (세션 ① 작업 중). FormData 'files' 필드, 응답 { ok, sources?: string[] }
-export async function uploadFiles(files: File[]): Promise<{ sources?: string[] } | null> {
+// 파일 업로드 — /api/upload. 서버는 파일 내용으로 소스를 판별하고,
+// 판별 실패 파일은 uploaded에서 빠지고 errors로 옴 → 파일명 매칭이 인덱스 매칭보다 안전
+export type UploadResponse = {
+  ok: boolean;
+  sources?: string[];
+  uploaded?: { filename: string; source: string; detail?: string }[];
+  // 세션 누적 소스별 요약 (예: { source: 'email', detail: '메일 14통' }) — 분석 오버레이 하위 항목 카운트에 사용
+  session?: { source: string; detail: string }[];
+  errors?: { filename: string; error: string }[];
+};
+
+export async function uploadFiles(files: File[]): Promise<UploadResponse | null> {
   try {
     const fd = new FormData();
     for (const f of files) fd.append('files', f);
@@ -140,6 +171,19 @@ export async function uploadFiles(files: File[]): Promise<{ sources?: string[] }
     // 엔드포인트 미구현 시 클라이언트 파일명 추론으로 폴백
   }
   return null;
+}
+
+// AI 추정 프로필 수정 — PATCH /api/profile (세션 ① 스키마: { inferredRole })
+export async function patchProfile(inferredRole: string): Promise<void> {
+  try {
+    await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inferredRole }),
+    });
+  } catch {
+    // 미구현이어도 클라이언트 상태로 유지
+  }
 }
 
 // 인수인계서 내보내기 — /api/export 우선, 실패 시 클라이언트에서 Markdown 생성
