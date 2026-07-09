@@ -1,7 +1,37 @@
-# 이음 — AI 인수인계 (지란지교 해커톤 2026)
+# 이음 (Eum) — AI 인수인계 서비스
 
-퇴사자의 활동 데이터(메일·Slack·Jira·오피스노트·오피스챗)에서 기록된 적 없는 업무 지식을 꺼내
-후임자의 온보딩 지도로 만든다. 설계: `~/Documents/officenote/hackathon2026-plan/DESIGN.md`
+> 지란지교 해커톤 2026 · 팀 노트개발팀
+
+퇴사자의 활동 데이터(메일·메신저·이슈·문서)에서 **문서에 기록된 적 없는 업무 지식**을 AI로 꺼내,
+후임자를 위한 **업무 지도**와 **온보딩 로드맵**으로 만들어 주는 서비스입니다.
+
+## 무엇이 다른가
+
+사내 AI 검색·챗봇은 **이미 기록된** 지식을 찾아줍니다(pull). 질문할 줄 아는 사람이, 문서화된 것을 물을 때만 답합니다.
+이음은 그 반대입니다(push):
+
+1. **업무 지도** — 흩어진 활동 데이터에서 담당 업무·관계자·진행 중인 일·주의 이력을 자동 정리
+2. **온보딩 로드맵** — 후임자에게 첫 달 할 일을 "즉시·1주차·2주차·한 달" 순서로 제시
+3. **AI 역질문** — 전화·구두로 끝나 **어디에도 기록되지 않은 일**을 AI가 찾아 전임자에게 먼저 질문하고, 그 답을 지도에 편입
+
+즉, 있는 지식을 찾아주는 것을 넘어 **없던 지식을 기록으로 만듭니다.** 모든 산출물에는 원문 근거가 인용되어 검증할 수 있습니다.
+
+## 데모 데이터
+
+이 저장소의 파이프라인은 **가상 인물 "김하늘 대리"(플랫폼사업팀, 퇴사 예정)** 의 5개 소스 목데이터로 동작합니다.
+실제 개인정보가 아니며, 데모 시나리오는 `server/`의 목데이터에 정의되어 있습니다.
+
+## 아키텍처
+
+```
+5개 소스 파서(mbox·CSV·JSON·마크다운)
+   → Stage 1  소스별 지식 추출     (claude-sonnet-5, 병렬)
+   → Stage 2  업무 지도 종합        (claude-opus-4.8)
+   → Stage 3  온보딩 로드맵 + 역질문 (claude-opus-4.8)
+```
+
+- LLM 호출은 행사 지급 **게이트웨이(OpenAI 호환 chat/completions)** 를 사용하며, 어댑터 계층으로 추상화되어 있어 제품화 시 API 백엔드로 교체 가능합니다.
+- temperature 0 · JSON 파싱 실패 시 1회 재시도 · 입력 해시 기반 스테이지 캐시(`cache/`)로 재실행 비용을 최소화합니다.
 
 ## 실행
 
@@ -11,20 +41,13 @@ pnpm dev:server   # Express :3001 (LLM 파이프라인)
 pnpm dev:web      # Vite :5173 (/api 프록시)
 ```
 
-`.env` (루트, gitignore됨):
+루트에 `.env` 필요 (gitignore됨):
 
 ```
-AI_API_KEY=sk-...   # 게이트웨이 키 (LLM_API_KEY도 인식)
+AI_API_KEY=<게이트웨이 키>   # LLM_API_KEY 도 인식
 ```
 
-## 구조
-
-- `server/src/llm/adapter.ts` — OpenAI 호환 chat/completions (게이트웨이가 Anthropic /v1/messages 미지원 — 7/9 확인). temperature 0, JSON 파싱 실패 시 1회 재시도, `cache/`에 입력 해시 기반 스테이지 캐시.
-- `server/src/parsers/` — 목데이터 5소스 → ref 규약 텍스트 청크
-- `server/src/pipeline/` — stage1 추출(Sonnet ×5 병렬) → stage2 WorkMap(Opus) → stage3a 로드맵 + 3b 역질문(Opus)
-- `web/` — React + Tailwind, 4화면 (연동 → 업무 지도 → 로드맵 → 인터뷰)
-
-## 파이프라인 단독 실행 (프롬프트 튜닝 루프)
+## 파이프라인 단독 실행 (프롬프트 튜닝용)
 
 ```bash
 cd server
@@ -33,7 +56,24 @@ pnpm exec tsx src/pipeline/run-stage2.ts   # → out/workmap.json
 pnpm exec tsx src/pipeline/run-stage3.ts   # → out/roadmap.json, out/questions.json
 ```
 
-같은 입력이면 `cache/` 히트로 LLM 호출 생략. 특정 스테이지만 다시 돌리려면 해당 캐시 파일 삭제.
+같은 입력이면 `cache/` 히트로 LLM 호출을 생략합니다. 특정 스테이지만 다시 돌리려면 해당 캐시 파일을 삭제하세요.
 
-- 데모 오버레이 속도: `DEMO_PACE_MS` (기본 1800, 0이면 끔)
-- 실측 소요(캐시 미스): stage1 ~45s · stage2 ~3분 · stage3 ~1.5분 — 라이브 데모는 캐시 필수
+- 실측 소요(캐시 미스): Stage 1 ~45초 · Stage 2 ~3분 · Stage 3 ~1.5분. 라이브 데모는 캐시 히트 전제입니다.
+- 데모 진행 오버레이 속도: `DEMO_PACE_MS` (기본 1800, 0이면 끔)
+
+## 구조
+
+```
+server/src/
+  llm/adapter.ts     게이트웨이 호출 어댑터 (재시도·캐시)
+  parsers/           소스별 파서 → 근거 인용 규약 텍스트
+  pipeline/          stage1 추출 → stage2 종합 → stage3 로드맵·역질문
+web/src/             React + Tailwind — 연동 → 업무 지도 → 로드맵 → 인터뷰 4화면
+```
+
+## 범위와 다음 단계
+
+- 현재: export 파일 업로드 기반. 목데이터로 전 과정(업로드 → 분석 → 지도·로드맵·역질문 → 공유 → 문서 내보내기) 동작.
+- 다음(STEP 2): 표준 프로토콜 실시간 연동(IMAP·Jira API), 사내 실제 인수인계 1건 파일럿, 정확도·건당 원가 실측.
+
+프라이버시: 분석은 본인 동의로만 시작하고, 원문은 분석 후 삭제하며 근거 인용만 보존합니다. 지도는 전임자 검수·공유 전까지 비공개입니다.
