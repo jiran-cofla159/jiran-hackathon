@@ -102,67 +102,24 @@ export function PredecessorHome({
   );
 }
 
-export function SuccessorHome({
-  result,
-  onGo,
-}: {
-  result: AnalyzeResult | null;
-  onGo: (screen: 'roadmap' | 'map') => void;
-}) {
-  const urgent = result?.roadmap.filter((r) => r.week === 0).length ?? 0;
-  const answered = result?.questions.filter((q) => q.answer).length ?? 0;
-  const predecessor = result?.workMap.person.name;
-
+// 후임자 랜딩('첫 한 달 할 일')에서 아직 공유받은 인수인계가 없을 때의 잠금 상태
+export function SuccessorLocked() {
   return (
     <div className="space-y-6">
-      <Card className="flex items-center justify-between !p-6">
-        <div className="flex items-center gap-4">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl font-bold text-emerald-700">
-            🌱
-          </span>
-          <div>
-            <div className="text-xl font-bold">새 업무 온보딩</div>
-          </div>
-        </div>
-        {predecessor && <Badge tone="indigo">{predecessor} 님 업무 인계 중</Badge>}
+      <Card className="flex items-center gap-4 !p-6">
+        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl font-bold text-emerald-700">
+          🌱
+        </span>
+        <div className="text-xl font-bold">새 업무 온보딩</div>
       </Card>
 
-      {result ? (
-        <Card className="!p-8 text-center">
-          <div className="text-2xl font-bold">
-            {predecessor} 님의 <span className="text-indigo-600">업무 지식이 준비되어 있습니다</span>
-          </div>
-          <p className="mx-auto mt-2 max-w-xl text-sm text-neutral-500">
-            <b className="font-semibold text-neutral-700">✅ 첫 한 달 할 일</b>부터 체크해 나가고, 막히면{' '}
-            <b className="font-semibold text-neutral-700">🗺️ 업무 지도</b>에서 전체 그림을 찾아보세요.
-          </p>
-          <div className="mt-6 flex justify-center gap-8">
-            {[
-              { n: result.roadmap.length, label: '할 일' },
-              { n: urgent, label: '즉시 할 일', accent: urgent > 0 },
-              { n: result.workMap.duties.length, label: '인계 업무' },
-              { n: answered, label: '인터뷰 답변' },
-            ].map((s) => (
-              <div key={s.label} className="text-center">
-                <div className={`text-2xl font-bold ${s.accent ? 'text-red-600' : 'text-indigo-600'}`}>{s.n}</div>
-                <div className="text-xs text-neutral-500">{s.label}</div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-8 flex justify-center gap-3">
-            <CtaButton onClick={() => onGo('roadmap')}>첫 한 달 할 일 보기 →</CtaButton>
-            <GhostButton onClick={() => onGo('map')}>업무 지도 열람</GhostButton>
-          </div>
-        </Card>
-      ) : (
-        <Card className="!p-10 text-center">
-          <div className="text-3xl">🔒</div>
-          <div className="mt-3 text-lg font-semibold">이 계정으로 공유된 인수인계가 없습니다</div>
-          <p className="mt-1 text-sm text-neutral-500">
-            전임자가 업무 지도를 검토한 뒤 이 이메일로 공유하면, 이곳에 첫 한 달 할 일이 나타납니다.
-          </p>
-        </Card>
-      )}
+      <Card className="!p-10 text-center">
+        <div className="text-3xl">🔒</div>
+        <div className="mt-3 text-lg font-semibold">이 계정으로 공유된 인수인계가 없습니다</div>
+        <p className="mt-1 text-sm text-neutral-500">
+          전임자가 업무 지도를 검토한 뒤 이 이메일로 공유하면, 이곳에 첫 한 달 할 일이 나타납니다.
+        </p>
+      </Card>
     </div>
   );
 }

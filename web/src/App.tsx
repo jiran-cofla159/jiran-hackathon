@@ -10,7 +10,7 @@ import {
   type JobStatus,
 } from './api';
 import { CONNECTORS, ConnectScreen, inferSource, type ConnectorKey } from './screens/Connect';
-import { PredecessorHome, SuccessorHome } from './screens/Home';
+import { PredecessorHome, SuccessorLocked } from './screens/Home';
 import { InterviewScreen } from './screens/InterviewScreen';
 import { LoginScreen } from './screens/Login';
 import { RoadmapScreen } from './screens/RoadmapScreen';
@@ -32,9 +32,9 @@ const NAV: Record<Role, { key: Screen; label: string; needsResult?: boolean }[]>
     { key: 'interview', label: '③ 인터뷰', needsResult: true },
   ],
   successor: [
-    { key: 'home', label: '홈' },
-    { key: 'roadmap', label: '✅ 첫 한 달 할 일', needsResult: true },
-    { key: 'map', label: '🗺️ 업무 지도', needsResult: true },
+    // 후임자 랜딩 — 로그인 즉시 할 일 화면. 공유 전이면 화면 안에서 잠금 처리하므로 needsResult 없음
+    { key: 'roadmap', label: '온보딩 가이드' },
+    { key: 'map', label: '전체 업무 한눈에', needsResult: true },
   ],
 };
 
@@ -138,7 +138,8 @@ export default function App() {
       void resetSession();
     }
     setRole(r);
-    setScreen('home');
+    // 후임자는 홈 없이 '첫 한 달 할 일'을 랜딩으로 진입
+    setScreen(r === 'successor' ? 'roadmap' : 'home');
     setHighlightId(null);
   };
 
@@ -302,9 +303,6 @@ export default function App() {
             onGo={setScreen}
           />
         )}
-        {screen === 'home' && role === 'successor' && (
-          <SuccessorHome result={successorResult} onGo={setScreen} />
-        )}
         {screen === 'connect' && role === 'predecessor' && profile && (
           <ConnectScreen
             profile={profile}
@@ -345,13 +343,17 @@ export default function App() {
         {screen === 'interview' && role === 'predecessor' && result && (
           <InterviewScreen questions={result.questions} onAnswered={onAnswered} onGoToMap={goToMapCard} />
         )}
-        {screen === 'roadmap' && role === 'successor' && successorResult && (
-          <RoadmapScreen
-            roadmap={successorResult.roadmap}
-            map={successorResult.workMap}
-            onGoToMap={goToMapCard}
-          />
-        )}
+        {screen === 'roadmap' && role === 'successor' &&
+          (successorResult ? (
+            <RoadmapScreen
+              roadmap={successorResult.roadmap}
+              map={successorResult.workMap}
+              predecessorName={successorResult.workMap.person.name}
+              onGoToMap={goToMapCard}
+            />
+          ) : (
+            <SuccessorLocked />
+          ))}
       </main>
     </div>
   );
