@@ -1,0 +1,9 @@
+{
+  "name": "ieum",
+  "private": true,
+  "scripts": {
+    "dev:server": "pnpm --filter server dev",
+    "dev:web": "pnpm --filter web dev",
+    "smoke": "pnpm --filter server smoke"
+  }
+}
