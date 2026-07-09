@@ -177,8 +177,14 @@ export function WorkMapScreen({
           <h2 className="mb-3 text-sm font-semibold text-neutral-500">📋 담당 업무</h2>
           <div className="space-y-3">
             {duties.map((d) => (
-              <Card key={d.id}>
-                <div className="flex items-start justify-between gap-2">
+              <Card
+                key={d.id}
+                className={highlightId === d.id ? 'card-in ring-2 ring-indigo-400' : ''}
+              >
+                <div
+                  ref={highlightId === d.id ? highlightRef : undefined}
+                  className="flex items-start justify-between gap-2"
+                >
                   <div className="font-semibold">{d.title}</div>
                   <div className="flex shrink-0 gap-1.5">
                     <Badge tone="indigo">
@@ -199,8 +205,14 @@ export function WorkMapScreen({
           <h2 className="mb-3 text-sm font-semibold text-neutral-500">🔥 진행 중인 일</h2>
           <div className="space-y-3">
             {ongoing.map((o) => (
-              <Card key={o.id}>
-                <div className="flex items-start justify-between gap-2">
+              <Card
+                key={o.id}
+                className={highlightId === o.id ? 'card-in ring-2 ring-indigo-400' : ''}
+              >
+                <div
+                  ref={highlightId === o.id ? highlightRef : undefined}
+                  className="flex items-start justify-between gap-2"
+                >
                   <div className="font-semibold">{o.title}</div>
                   <div className="flex shrink-0 gap-1.5">
                     {o.due && <Badge>~{o.due}</Badge>}

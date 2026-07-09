@@ -133,12 +133,12 @@ export function SuccessorHome({
             {predecessor} 님의 <span className="text-indigo-600">업무 지식이 준비되어 있습니다</span>
           </div>
           <p className="mx-auto mt-2 max-w-xl text-sm text-neutral-500">
-            <b className="font-semibold text-neutral-700">온보딩 로드맵</b>은 <b>언제 무엇부터</b> 할지 시간 순 실행 계획,{' '}
-            <b className="font-semibold text-neutral-700">업무 지도</b>는 <b>무엇을 맡는지</b> 담당 업무·관계자 전체 그림입니다.
+            <b className="font-semibold text-neutral-700">✅ 첫 한 달 할 일</b>부터 체크해 나가고, 막히면{' '}
+            <b className="font-semibold text-neutral-700">🗺️ 업무 지도</b>에서 전체 그림을 찾아보세요.
           </p>
           <div className="mt-6 flex justify-center gap-8">
             {[
-              { n: result.roadmap.length, label: '로드맵 항목' },
+              { n: result.roadmap.length, label: '할 일' },
               { n: urgent, label: '즉시 할 일', accent: urgent > 0 },
               { n: result.workMap.duties.length, label: '인계 업무' },
               { n: answered, label: '인터뷰 답변' },
@@ -150,7 +150,7 @@ export function SuccessorHome({
             ))}
           </div>
           <div className="mt-8 flex justify-center gap-3">
-            <CtaButton onClick={() => onGo('roadmap')}>첫 한 달 로드맵 보기 →</CtaButton>
+            <CtaButton onClick={() => onGo('roadmap')}>첫 한 달 할 일 보기 →</CtaButton>
             <GhostButton onClick={() => onGo('map')}>업무 지도 열람</GhostButton>
           </div>
         </Card>
@@ -159,7 +159,7 @@ export function SuccessorHome({
           <div className="text-3xl">🔒</div>
           <div className="mt-3 text-lg font-semibold">이 계정으로 공유된 인수인계가 없습니다</div>
           <p className="mt-1 text-sm text-neutral-500">
-            전임자가 업무 지도를 검토한 뒤 이 이메일로 공유하면, 이곳에 온보딩 로드맵이 나타납니다.
+            전임자가 업무 지도를 검토한 뒤 이 이메일로 공유하면, 이곳에 첫 한 달 할 일이 나타납니다.
           </p>
         </Card>
       )}

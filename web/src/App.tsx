@@ -33,8 +33,8 @@ const NAV: Record<Role, { key: Screen; label: string; needsResult?: boolean }[]>
   ],
   successor: [
     { key: 'home', label: '홈' },
-    { key: 'roadmap', label: '온보딩 로드맵', needsResult: true },
-    { key: 'map', label: '업무 지도', needsResult: true },
+    { key: 'roadmap', label: '✅ 첫 한 달 할 일', needsResult: true },
+    { key: 'map', label: '🗺️ 업무 지도', needsResult: true },
   ],
 };
 
@@ -131,6 +131,8 @@ export default function App() {
       localStorage.removeItem(LS_SOURCES);
       // 구버전 사후 수정본 잔존값 청소 (기능은 제거됨)
       localStorage.removeItem('ieum.roleOverride.v1');
+      // 이전 인수인계의 로드맵 체크 상태도 초기화
+      localStorage.removeItem('ieum.roadmapDone.v1');
 
       // 서버 세션도 새 분석으로 격리 (실패해도 데모 흐름은 계속)
       void resetSession();
@@ -344,7 +346,11 @@ export default function App() {
           <InterviewScreen questions={result.questions} onAnswered={onAnswered} onGoToMap={goToMapCard} />
         )}
         {screen === 'roadmap' && role === 'successor' && successorResult && (
-          <RoadmapScreen roadmap={successorResult.roadmap} map={successorResult.workMap} />
+          <RoadmapScreen
+            roadmap={successorResult.roadmap}
+            map={successorResult.workMap}
+            onGoToMap={goToMapCard}
+          />
         )}
       </main>
     </div>
