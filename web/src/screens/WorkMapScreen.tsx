@@ -5,62 +5,12 @@ import { Avatar, Badge, Card, EvidenceChips, urgencyTone } from '../ui';
 const cadenceLabel = (c: WorkMap['duties'][number]['cadence']) =>
   ({ weekly: '매주', monthly: '매월', quarterly: '분기', adhoc: '상시' })[c.type];
 
-// AI가 데이터에서 추정한 역할 — 전임자(onSave 전달 시)만 인라인 수정 가능
-function InferredRole({ role, onSave }: { role: string; onSave?: (v: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(role);
-
-  const commit = () => {
-    const v = draft.trim();
-    if (v && v !== role) onSave?.(v);
-    setEditing(false);
-  };
-
+// AI가 데이터에서 추정한 역할 (표시 전용) — 수정은 분석 중 직무 확인 스텝에서 이뤄진다
+function InferredRole({ role }: { role: string }) {
   return (
-    <div className="mt-1.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="indigo">AI 추정</Badge>
-        {editing ? (
-          <>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  commit();
-                }
-              }}
-              autoFocus
-              rows={2}
-              className="min-w-0 flex-1 basis-80 resize-y rounded-md border border-indigo-300 px-2.5 py-1.5 text-sm leading-relaxed focus:outline-none"
-            />
-            <button
-              onClick={commit}
-              className="shrink-0 cursor-pointer self-start rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
-            >
-              저장
-            </button>
-          </>
-        ) : (
-          <>
-            <span className="text-sm font-medium text-neutral-700">{role}</span>
-            {onSave && (
-              <button
-                onClick={() => {
-                  setDraft(role);
-                  setEditing(true);
-                }}
-                title="추정 프로필 수정"
-                className="cursor-pointer rounded p-0.5 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-600"
-              >
-                ✏️
-              </button>
-            )}
-          </>
-        )}
-      </div>
-      <p className="mt-0.5 text-xs text-neutral-400">수정할 수 있어요.</p>
+    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+      <Badge tone="indigo">AI 추정</Badge>
+      <span className="text-sm font-medium text-neutral-700">{role}</span>
     </div>
   );
 }
@@ -144,15 +94,12 @@ export function WorkMapScreen({
   interviewCards = [],
   highlightId,
   inferredRole,
-  onSaveRole,
   share,
 }: {
   map: WorkMap;
   interviewCards?: InterviewCard[];
   highlightId?: string | null;
   inferredRole?: string;
-  // 전임자 화면에서만 전달 — 추정 프로필 수정 권한
-  onSaveRole?: (v: string) => void;
   // 전임자 화면에서만 전달 — 공유 통제권이 전임자에게 있음. recipient: 지정한 후임자
   share?: { shared: boolean; recipient?: string; onShare: (recipient: string) => void };
 }) {
@@ -180,7 +127,7 @@ export function WorkMapScreen({
             {map.person.name}의 업무 지도
             <span className="ml-2 text-sm font-normal text-neutral-500">퇴사 {map.person.lastDay}</span>
           </div>
-          <InferredRole role={inferredRole ?? map.person.team} onSave={onSaveRole} />
+          <InferredRole role={inferredRole ?? map.person.team} />
           <div className="mt-1 text-sm text-neutral-600">
             <span className="font-medium text-indigo-600">무엇을 맡는지</span> — 담당 업무·관계자·진행 중인 일·주의사항을 한눈에 보는 전체 지도입니다.
           </div>

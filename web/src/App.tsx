@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   exportHandover,
-  patchProfile,
   pollJob,
   resetSession,
   startAnalyze,
@@ -44,7 +43,6 @@ const LS_RESULT = 'ieum.result.v1';
 const LS_CONNECTED = 'ieum.connected.v1';
 const LS_PRIVACY = 'ieum.privacy.v1';
 const LS_PROFILE = 'ieum.profile.v1';
-const LS_ROLE_OVERRIDE = 'ieum.roleOverride.v1';
 const LS_SOURCES = 'ieum.sources.v1';
 
 // 분석 오버레이 stage1 하위 항목: 소스별 카운트 (업로드 응답 session에서 채워짐)
@@ -76,6 +74,8 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(() => load<Profile>(LS_PROFILE));
   const [screen, setScreen] = useState<Screen>('home');
   const [job, setJob] = useState<JobStatus | null>(null);
+  // 현재 분석 작업 id — 직무 확인 스텝(confirmRole)에서 사용
+  const [jobId, setJobId] = useState<string | null>(null);
   const [result, setResultState] = useState<AnalyzeResult | null>(() => load<AnalyzeResult>(LS_RESULT));
   const [connected, setConnected] = useState<Partial<Record<ConnectorKey, string[]>>>(
     () => load<Partial<Record<ConnectorKey, string[]>>>(LS_CONNECTED) ?? {},
@@ -88,10 +88,6 @@ export default function App() {
   const [consented, setConsented] = useState(false);
   const [privacy, setPrivacyState] = useState<Privacy>(
     () => load<Privacy>(LS_PRIVACY) ?? { purgeOriginals: true, purged: false, shared: false },
-  );
-  // AI 추정 역할의 사용자 수정본 (지도 헤더 연필 아이콘)
-  const [roleOverride, setRoleOverrideState] = useState<string | null>(() =>
-    load<string>(LS_ROLE_OVERRIDE),
   );
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -113,7 +109,7 @@ export default function App() {
     // 후임자는 초대받은 회사 이메일로 접속 — 그 이메일을 본인 신원으로 사용
     setSuccessorEmail(r === 'successor' ? (successorEmail ?? null) : null);
     // 새 전임자 로그인(새 profile 전달)이면 이전 분석 진행사항을 전부 초기화 —
-    // stale한 result/connected/privacy/roleOverride가 새 인수인계에 새어나오지 않도록.
+    // stale한 result/connected/privacy가 새 인수인계에 새어나오지 않도록.
     // 후임자(profile 없음)는 전임자 결과를 봐야 하므로 초기화하지 않는다.
     if (p) {
       setProfile(p);
@@ -123,8 +119,8 @@ export default function App() {
       setConnected({});
       setSources([]);
       setPrivacyState({ purgeOriginals: true, purged: false, shared: false });
-      setRoleOverrideState(null);
       setJob(null);
+      setJobId(null);
       setConsented(false);
       setAnalyzeStartedAt(null);
       if (timer.current) clearInterval(timer.current);
@@ -133,7 +129,8 @@ export default function App() {
       localStorage.removeItem(LS_CONNECTED);
       localStorage.removeItem(LS_PRIVACY);
       localStorage.removeItem(LS_SOURCES);
-      localStorage.removeItem(LS_ROLE_OVERRIDE);
+      // 구버전 사후 수정본 잔존값 청소 (기능은 제거됨)
+      localStorage.removeItem('ieum.roleOverride.v1');
 
       // 서버 세션도 새 분석으로 격리 (실패해도 데모 흐름은 계속)
       void resetSession();
@@ -178,6 +175,7 @@ export default function App() {
       purge,
       profile ? { name: profile.name, lastDay: profile.lastDay } : undefined,
     );
+    setJobId(jobId);
     setJob({ status: 'running', stage: 'parse', stageDetail: '시작 중…' });
     timer.current = setInterval(async () => {
       const s = await pollJob(jobId);
@@ -218,12 +216,6 @@ export default function App() {
     setScreen('map');
   };
 
-  const saveRole = (v: string) => {
-    setRoleOverrideState(v);
-    save(LS_ROLE_OVERRIDE, v);
-    void patchProfile(v);
-  };
-
   if (!role) return <LoginScreen onStart={login} />;
 
   const interviewCards = result ? toInterviewCards(result.questions) : [];
@@ -233,7 +225,7 @@ export default function App() {
     !privacy.shareTo ||
     privacy.shareTo.trim().toLowerCase() === (successorEmail ?? '').trim().toLowerCase();
   const successorResult = privacy.shared && successorMatched ? result : null;
-  const inferredRole = roleOverride ?? result?.workMap.person.inferredRole ?? result?.workMap.person.team ?? '';
+  const inferredRole = result?.workMap.person.inferredRole ?? result?.workMap.person.team ?? '';
   // 후임자는 전임자가 초대한 계정으로 열람 — 지정된 수신자 이름을 헤더에 표시
   const displayName = role === 'predecessor' ? (profile?.name ?? '') : (successorEmail ?? '후임자');
   const subLabel =
@@ -317,6 +309,7 @@ export default function App() {
             connected={connected}
             onFiles={onFiles}
             job={job}
+            jobId={jobId}
             onStart={start}
             onRetry={start}
             sources={sources}
@@ -332,7 +325,6 @@ export default function App() {
             interviewCards={interviewCards}
             highlightId={highlightId}
             inferredRole={inferredRole}
-            onSaveRole={saveRole}
             share={{
               shared: privacy.shared,
               recipient: privacy.shareTo,

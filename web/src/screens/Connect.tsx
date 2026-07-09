@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Badge, Card } from '../ui';
-import type { JobStatus } from '../api';
+import { confirmRole, type JobStatus } from '../api';
 import { dDay, type Profile, type SourceSummary } from '../App';
 
 export type ConnectorKey = 'slack' | 'email' | 'jira' | 'officenote';
@@ -142,6 +142,7 @@ export function ConnectScreen({
   connected,
   onFiles,
   job,
+  jobId,
   onStart,
   onRetry,
   sources,
@@ -154,6 +155,7 @@ export function ConnectScreen({
   connected: Partial<Record<ConnectorKey, string[]>>;
   onFiles: (files: File[]) => void;
   job: JobStatus | null;
+  jobId: string | null;
   onStart: () => void;
   onRetry: () => void;
   sources: SourceSummary[];
@@ -349,6 +351,7 @@ export function ConnectScreen({
         <AnalysisOverlay
           name={profile.name}
           job={job}
+          jobId={jobId}
           sources={sources}
           startedAt={analyzeStartedAt}
           onRetry={onRetry}
@@ -369,12 +372,14 @@ function Spinner({ className = 'border-white/40 border-t-white' }: { className?:
 function AnalysisOverlay({
   name,
   job,
+  jobId,
   sources,
   startedAt,
   onRetry,
 }: {
   name: string;
   job: JobStatus | null;
+  jobId: string | null;
   sources: SourceSummary[];
   startedAt: number | null;
   onRetry: () => void;
@@ -397,12 +402,16 @@ function AnalysisOverlay({
     seenIdxRef.current = 0;
   }
 
-  const stageIdx = STAGES.findIndex((s) => s.key === job?.stage);
+  // 직무 확인 대기 — stage2와 stage3 사이. 이때는 진행이 멈춘 게 아니라 사용자 입력 대기.
+  const confirming = job?.stage === 'confirm';
+  // confirm 중에는 stage2까지 완료, stage3는 아직 대기 상태로 보이게 한다.
+  const stageIdx = confirming ? 2 : STAGES.findIndex((s) => s.key === job?.stage);
   const totalSec = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
   const stageSec = Math.max(0, Math.floor((now - stageStartRef.current) / 1000));
 
   const current = STAGES[stageIdx];
-  const stuck = !!job?.stuck || (!!current && stageSec >= current.stuckSec);
+  // 사용자가 직무를 확인하는 시간은 '지연'이 아니므로 stuck 판정에서 제외한다.
+  const stuck = !confirming && (!!job?.stuck || (!!current && stageSec >= current.stuckSec));
 
   // stage1 하위 항목: 업로드 세션 요약 순서 유지, 없으면 표시 안 함
   const subItems = sources;
@@ -438,9 +447,19 @@ function AnalysisOverlay({
 
         <ul className="space-y-4">
           {STAGES.map((s, i) => {
-            const state = i < stageIdx ? 'done' : i === stageIdx ? 'running' : 'wait';
+            // confirm 중에는 stage2까지 완료로, stage3는 대기로 표시 (아직 실행 안 됨)
+            const state = confirming
+              ? i <= stageIdx
+                ? 'done'
+                : 'wait'
+              : i < stageIdx
+                ? 'done'
+                : i === stageIdx
+                  ? 'running'
+                  : 'wait';
             return (
-              <li key={s.key} className="flex items-start gap-3">
+              <Fragment key={s.key}>
+              <li className="flex items-start gap-3">
                 <span
                   className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                     state === 'done'
@@ -504,10 +523,91 @@ function AnalysisOverlay({
                   )}
                 </div>
               </li>
+              {confirming && s.key === 'stage2' && (
+                <ConfirmRoleStep jobId={jobId} inferredRole={job?.inferredRole} />
+              )}
+              </Fragment>
             );
           })}
         </ul>
       </Card>
     </div>
+  );
+}
+
+// 직무 확인 스텝 — 분석 오버레이 안, stage2와 stage3 사이에 표시.
+// 로드맵이 이 직무 기준으로 만들어지므로, 자료에 치우친 추정을 사용자가 바로잡을 기회.
+function ConfirmRoleStep({ jobId, inferredRole }: { jobId: string | null; inferredRole?: string }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(inferredRole ?? '');
+  // 확인/수정 요청 후에는 중복 클릭을 막고 재개 대기 상태를 보여준다
+  const [submitted, setSubmitted] = useState(false);
+
+  const submit = (role?: string) => {
+    if (!jobId || submitted) return;
+    setSubmitted(true);
+    void confirmRole(jobId, role);
+  };
+
+  return (
+    <li className="ml-9 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+      <div className="text-sm">
+        <span className="font-medium text-neutral-500">🧭 AI가 분석한 직무</span>
+        <div className="mt-1 text-base font-semibold text-neutral-900">{inferredRole || '(추정 없음)'}</div>
+      </div>
+      <p className="mt-1.5 text-xs leading-relaxed text-neutral-500">
+        자료 기준 추정입니다. 실제 직무와 다르면 고쳐주세요 — 온보딩 로드맵이 이 직무 기준으로 만들어집니다.
+      </p>
+
+      {submitted ? (
+        <div className="mt-3 flex items-center gap-2 text-xs font-medium text-indigo-600">
+          <Spinner className="border-indigo-200 border-t-indigo-500" />
+          로드맵 설계를 이어갑니다…
+        </div>
+      ) : editing ? (
+        <div className="mt-3">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            autoFocus
+            rows={2}
+            className="w-full resize-y rounded-md border border-indigo-300 px-2.5 py-1.5 text-sm leading-relaxed focus:outline-none"
+          />
+          <div className="mt-2 flex justify-end gap-2">
+            <button
+              onClick={() => setEditing(false)}
+              className="cursor-pointer rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50"
+            >
+              취소
+            </button>
+            <button
+              disabled={!draft.trim()}
+              onClick={() => submit(draft.trim())}
+              className="cursor-pointer rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              이 직무로 진행
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => submit()}
+            className="cursor-pointer rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+          >
+            맞아요, 계속
+          </button>
+          <button
+            onClick={() => {
+              setDraft(inferredRole ?? '');
+              setEditing(true);
+            }}
+            className="cursor-pointer rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50"
+          >
+            직무 수정
+          </button>
+        </div>
+      )}
+    </li>
   );
 }

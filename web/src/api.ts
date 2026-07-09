@@ -102,6 +102,8 @@ export type JobStatus = {
   result?: AnalyzeResult;
   // 서버가 진행이 멈췄다고 판단하면 true (없으면 클라이언트가 경과 시간으로 백업 판정)
   stuck?: boolean;
+  // stage === 'confirm'일 때 서버가 내려주는 AI 추정 직무 — 사용자 확인 후 stage3 재개
+  inferredRole?: string;
 };
 
 // purgeOriginals: 분석 완료 후 원문 파일 삭제 요청 — 서버(세션 ①)가 body를 아직 안 읽어도 무해
@@ -173,16 +175,17 @@ export async function uploadFiles(files: File[]): Promise<UploadResponse | null>
   return null;
 }
 
-// AI 추정 프로필 수정 — PATCH /api/profile (세션 ① 스키마: { inferredRole })
-export async function patchProfile(inferredRole: string): Promise<void> {
+// 직무 확인/수정 — POST /api/analyze/:jobId/role. inferredRole 미전달/동일값이면 확인,
+// 다른 값이면 수정. 응답 후 서버가 stage3(로드맵)를 재개한다.
+export async function confirmRole(jobId: string, inferredRole?: string): Promise<void> {
   try {
-    await fetch('/api/profile', {
-      method: 'PATCH',
+    await fetch(`/api/analyze/${jobId}/role`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inferredRole }),
+      body: JSON.stringify(inferredRole !== undefined ? { inferredRole } : {}),
     });
   } catch {
-    // 미구현이어도 클라이언트 상태로 유지
+    // 미구현/실패여도 폴링이 계속 돌아 stage3가 재개되면 데모 흐름은 이어짐
   }
 }
 

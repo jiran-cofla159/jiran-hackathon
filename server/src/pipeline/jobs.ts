@@ -3,7 +3,6 @@ import { callLLM, MODELS } from '../llm/adapter.js';
 import type { ParsedSource } from '../parsers/index.js';
 import { DEMO_PROFILE, type Profile } from './profile.js';
 import {
-  getProfileRole,
   getSessionProfile,
   hasSessionData,
   sealSession,
@@ -25,7 +24,7 @@ export type StageTiming = { startedAt: number; tokens?: number; stuck?: boolean 
 export type Job = {
   id: string;
   status: 'running' | 'done' | 'error';
-  stage: string; // 'parse' | 'stage1' | 'stage2' | 'stage3' | 'done'
+  stage: string; // 'parse' | 'stage1' | 'stage2' | 'confirm' | 'stage3' | 'done'
   stageDetail: string;
   error?: string;
   result?: AnalyzeResult;
@@ -34,6 +33,9 @@ export type Job = {
   timings: Record<string, StageTiming>; // stage2 / stage3a / stage3b
   stuck: boolean; // 현재 스테이지가 타임아웃 임계를 넘김
   stuckStage?: string;
+  // 직무 확인 체크포인트: stage2 직후 추정 직무를 노출하고 사용자 확인을 기다린다.
+  pendingRole?: string; // stage === 'confirm'일 때 확인 대기 중인 추정 직무
+  confirmResolver?: (role: string | undefined) => void; // 확인 시 파이프라인 재개 (undefined=미변경)
 };
 
 const jobs = new Map<string, Job>();
@@ -110,19 +112,30 @@ async function runPipeline(job: Job) {
       runStage2(findings, job.profile, (tokens) => (t2.tokens = tokens)),
     );
 
+    // 직무 확인 체크포인트: stage2가 확정한 추정 직무가 실제와 맞는지 확인받는다.
+    // watchdog 밖에서 대기하므로 stuck 오판 없음. 타임아웃 없음(사용자가 자리를 비울 수 있음).
+    job.stage = 'confirm';
+    job.stageDetail = '직무 확인 대기 중';
+    job.pendingRole = workMap.person.inferredRole;
+    const roleOverride = await new Promise<string | undefined>((resolve) => {
+      job.confirmResolver = resolve;
+    });
+    job.confirmResolver = undefined;
+    job.pendingRole = undefined;
+    // 수정된 경우에만 workMap을 변형한다(미수정 시 stage3 입력이 바이트 동일 → 데모 캐시 히트 보존).
+    if (roleOverride) workMap.person.inferredRole = roleOverride;
+
     // Stage 3: 로드맵 + 역질문 (각각 시작 시각·토큰)
     await paced(job, 'stage3', '온보딩 로드맵 설계 + 기록되지 않은 지식 탐지 중…');
     const t3a = startTiming(job, 'stage3a');
     const t3b = startTiming(job, 'stage3b');
     const [roadmap, questions] = await withStuckWatch(job, 'stage3', () =>
       Promise.all([
-        runStage3a(workMap, job.profile, (tokens) => (t3a.tokens = tokens)),
-        runStage3b(workMap, docMeta, job.profile, (tokens) => (t3b.tokens = tokens)),
+        runStage3a(workMap, job.profile, (tokens) => (t3a.tokens = tokens), roleOverride),
+        runStage3b(workMap, docMeta, job.profile, (tokens) => (t3b.tokens = tokens), roleOverride),
       ]),
     );
 
-    const override = getProfileRole();
-    if (override) workMap.person.inferredRole = override;
     job.result = { workMap, roadmap, questions };
     job.stage = 'done';
     job.stageDetail = '분석 완료';
@@ -162,11 +175,23 @@ export function latestResult(): AnalyzeResult | undefined {
   return latestDoneJobId ? jobs.get(latestDoneJobId)?.result : undefined;
 }
 
-// PATCH /api/profile — 완료된 모든 job 결과에 즉시 반영 (이후 완료되는 job은 runPipeline에서 반영)
-export function applyProfileRole(role: string): void {
-  for (const job of jobs.values()) {
-    if (job.result) job.result.workMap.person.inferredRole = role;
-  }
+// POST /api/analyze/:jobId/role — 직무 확인 체크포인트 응답으로 파이프라인 재개.
+// inferredRole 미전달/빈값/기존값과 동일(trim 비교) → 미변경(undefined)으로 재개 → 캐시 보존.
+// 다른 값 → 그 값으로 재개 → workMap 반영 + stage3 프롬프트에 직무 주입.
+export function confirmRole(
+  jobId: string,
+  inferredRole?: string,
+): { ok: true } | { status: number; error: string } {
+  const job = jobs.get(jobId);
+  if (!job) return { status: 404, error: 'job not found' };
+  if (job.stage !== 'confirm' || !job.confirmResolver)
+    return { status: 409, error: '직무 확인 단계가 아닙니다.' };
+  const current = (job.pendingRole ?? '').trim();
+  const next = (inferredRole ?? '').trim();
+  const resolve = job.confirmResolver;
+  job.confirmResolver = undefined;
+  resolve(!next || next === current ? undefined : next);
+  return { ok: true };
 }
 
 // ---- 인터뷰 답변 → 업무 지도 편입 ----

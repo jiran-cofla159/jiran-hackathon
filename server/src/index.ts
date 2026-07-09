@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import {
-  applyProfileRole,
+  confirmRole,
   getJob,
   latestResult,
   saveAnswerAndIncorporate,
@@ -17,7 +17,6 @@ import {
   loadDemoIntoSession,
   resetSession,
   sessionSummary,
-  setProfileRole,
   setSessionProfile,
   type IngestResult,
 } from './pipeline/session.js';
@@ -105,8 +104,21 @@ app.get('/api/analyze/:jobId', (req, res) => {
     timings: job.timings, // { stage2: { startedAt, tokens }, stage3a, stage3b }
     stuck: job.stuck, // 현재 스테이지 지연 여부
     stuckStage: job.stuckStage,
+    inferredRole: job.pendingRole, // stage === 'confirm'일 때 확인 대기 중인 추정 직무
     result: job.status === 'done' ? job.result : undefined,
   });
+});
+
+// 직무 확인 체크포인트 응답 — 파이프라인을 stage3로 재개.
+// body { inferredRole?: string } 미전달/빈값/기존값과 동일 → 그대로 확인(캐시 보존).
+app.post('/api/analyze/:jobId/role', (req, res) => {
+  const inferredRole = req.body?.inferredRole;
+  const r = confirmRole(
+    req.params.jobId,
+    typeof inferredRole === 'string' ? inferredRole : undefined,
+  );
+  if ('error' in r) return res.status(r.status).json({ error: r.error });
+  res.json({ ok: true });
 });
 
 // 답변 저장 + LLM 1회로 지도(landmine 또는 duty/ongoing 노트) 편입
@@ -122,16 +134,6 @@ app.post('/api/questions/:id/answer', async (req, res) => {
     console.error('[answer] 편입 실패:', e);
     res.status(500).json({ error: (e as Error).message });
   }
-});
-
-// 사용자가 수정한 담당 업무 한 줄 저장 — 완료된 결과와 이후 분석에 모두 반영
-app.patch('/api/profile', (req, res) => {
-  const role = req.body?.inferredRole ?? req.body?.role; // 프런트는 inferredRole 키 사용
-  if (typeof role !== 'string' || !role.trim())
-    return res.status(400).json({ error: 'inferredRole required' });
-  setProfileRole(role.trim());
-  applyProfileRole(role.trim());
-  res.json({ ok: true, inferredRole: role.trim() });
 });
 
 // 현재 WorkMap + 로드맵 + Q&A → 마크다운 인수인계서 다운로드

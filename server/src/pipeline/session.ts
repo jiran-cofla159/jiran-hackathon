@@ -178,17 +178,6 @@ export function loadDemoIntoSession(dir = MOCKDATA_DIR): { source: string; detai
   return sessionSummary();
 }
 
-// 사용자가 수정한 담당 업무 한 줄 (PATCH /api/profile) — 이후 모든 응답의 person.inferredRole에 반영
-let profileRoleOverride: string | null = null;
-
-export function setProfileRole(role: string): void {
-  profileRoleOverride = role;
-}
-
-export function getProfileRole(): string | null {
-  return profileRoleOverride;
-}
-
 export function resetSession(): void {
   state.emails = undefined;
   state.jira = undefined;
@@ -200,5 +189,4 @@ export function resetSession(): void {
   state.profile = undefined;
   state.origin = undefined;
   state.sealed = false;
-  profileRoleOverride = null; // 새 분석에서는 이전 대상자의 역할 수정본을 버린다
 }
