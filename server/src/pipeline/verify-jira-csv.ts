@@ -5,7 +5,7 @@ import path from 'node:path';
 import { MOCKDATA_DIR, buildJira, buildJiraFromCsv } from '../parsers/index.js';
 import { ingestFile, resetSession, sessionSources } from './session.js';
 
-const data = JSON.parse(readFileSync(path.join(MOCKDATA_DIR, 'jira/issues.json'), 'utf8'));
+const data = JSON.parse(readFileSync(path.join(MOCKDATA_DIR, 'jira-issues.json'), 'utf8'));
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function jiraDate(iso: string): string {

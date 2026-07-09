@@ -6,9 +6,10 @@ import os from 'node:os';
 // 데모 디렉터리 일괄 로드(parseAll)와 업로드 세션(session.ts) 양쪽에서 같은 빌더를 쓴다
 // — 같은 파일이면 어느 경로로 들어와도 텍스트가 동일해야 스테이지 캐시가 일치한다.
 
+// 데모 데이터는 flat 구조(파일이 한 디렉터리에 평면 배치): emails.json, jira-issues.json,
+// slack-users.json, slack-plt-*.json, officechat-export.json, *.md (README.md 제외).
 export const MOCKDATA_DIR =
-  process.env.MOCKDATA_DIR ??
-  path.join(os.homedir(), 'Documents/officenote/hackathon2026-mockdata');
+  process.env.MOCKDATA_DIR ?? path.join(os.homedir(), 'Documents/hackathon2026-mockdata');
 
 export type ParsedSource = {
   source: 'email' | 'jira' | 'slack' | 'officenote' | 'officechat';
@@ -245,11 +246,11 @@ export function buildOfficechat(data: any): ParsedSource {
 
 const readJson = (p: string) => JSON.parse(readFileSync(p, 'utf8'));
 
+// README.md는 데모 각본 설명 파일이라 오피스노트 문서에서 제외 (실제 인계 문서 4건만)
 function readOfficenoteDocs(dir: string): RawDoc[] {
-  const noteDir = path.join(dir, 'officenote');
-  return readdirSync(noteDir)
-    .filter((f) => f.endsWith('.md'))
-    .map((f) => ({ name: f, content: readFileSync(path.join(noteDir, f), 'utf8') }));
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.md') && f !== 'README.md')
+    .map((f) => ({ name: f, content: readFileSync(path.join(dir, f), 'utf8') }));
 }
 
 export function officenoteDocMeta(dir = MOCKDATA_DIR): { title: string; lastModified: string }[] {
@@ -257,15 +258,15 @@ export function officenoteDocMeta(dir = MOCKDATA_DIR): { title: string; lastModi
 }
 
 export function parseAll(dir = MOCKDATA_DIR): ParsedSource[] {
-  const chDir = path.join(dir, 'slack/channels');
-  const channels = readdirSync(chDir)
-    .filter((f) => f.endsWith('.json'))
-    .map((f) => readJson(path.join(chDir, f)));
+  // 채널: slack-*.json 중 사용자 목록(slack-users.json) 제외
+  const channels = readdirSync(dir)
+    .filter((f) => /^slack-.*\.json$/.test(f) && f !== 'slack-users.json')
+    .map((f) => readJson(path.join(dir, f)));
   return [
-    buildEmail(readJson(path.join(dir, 'email/emails.json'))),
-    buildJira(readJson(path.join(dir, 'jira/issues.json'))),
-    buildSlack(readJson(path.join(dir, 'slack/users.json')), channels),
+    buildEmail(readJson(path.join(dir, 'emails.json'))),
+    buildJira(readJson(path.join(dir, 'jira-issues.json'))),
+    buildSlack(readJson(path.join(dir, 'slack-users.json')), channels),
     buildOfficenote(readOfficenoteDocs(dir)),
-    buildOfficechat(readJson(path.join(dir, 'officechat/export.json'))),
+    buildOfficechat(readJson(path.join(dir, 'officechat-export.json'))),
   ];
 }

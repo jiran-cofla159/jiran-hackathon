@@ -198,19 +198,23 @@ export function sealSession(): void {
 // ---- 데모 데이터 로드 (명시적 액션 전용) ----
 // 업로드와 완전히 동일한 ingest 경로를 타므로 결과가 디렉터리 로드와 바이트 단위로 일치한다.
 
+// 데모 데이터는 flat 구조(한 디렉터리에 평면 배치). 소스 판별은 파일 내용 기반이라
+// (.md만 파일명으로 officenote 처리) 파일명 규칙이 달라도 업로드 경로와 동일 결과가 나온다.
+// README.md는 각본 설명 파일이라 제외. 빌더가 모두 내부 정렬하므로 ingest 순서는 캐시에 무관.
 export function loadDemoIntoSession(dir = MOCKDATA_DIR): { source: string; detail: string }[] {
   resetSession();
+  const all = readdirSync(dir);
+  const channels = all.filter((f) => /^slack-.*\.json$/.test(f) && f !== 'slack-users.json');
+  const notes = all.filter((f) => f.endsWith('.md') && f !== 'README.md');
   const files = [
-    'email/emails.json',
-    'jira/issues.json',
-    'slack/users.json',
-    ...readdirSync(path.join(dir, 'slack/channels')).map((f) => `slack/channels/${f}`),
-    ...readdirSync(path.join(dir, 'officenote'))
-      .filter((f) => f.endsWith('.md'))
-      .map((f) => `officenote/${f}`),
-    'officechat/export.json',
+    'emails.json',
+    'jira-issues.json',
+    'slack-users.json',
+    ...channels,
+    ...notes,
+    'officechat-export.json',
   ];
-  for (const f of files) ingestCore(path.basename(f), readFileSync(path.join(dir, f)));
+  for (const f of files) ingestCore(f, readFileSync(path.join(dir, f)));
   state.origin = 'demo';
   state.profile = DEMO_PROFILE;
   return sessionSummary();

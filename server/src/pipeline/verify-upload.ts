@@ -8,15 +8,14 @@ import { ingestFile, resetSession, sessionDocMeta, sessionSources } from './sess
 
 resetSession();
 const dir = MOCKDATA_DIR;
+const all = readdirSync(dir);
 const files = [
-  'email/emails.json',
-  'jira/issues.json',
-  'slack/users.json',
-  ...readdirSync(path.join(dir, 'slack/channels')).map((f) => `slack/channels/${f}`),
-  ...readdirSync(path.join(dir, 'officenote'))
-    .filter((f) => f.endsWith('.md'))
-    .map((f) => `officenote/${f}`),
-  'officechat/export.json',
+  'emails.json',
+  'jira-issues.json',
+  'slack-users.json',
+  ...all.filter((f) => /^slack-.*\.json$/.test(f) && f !== 'slack-users.json'),
+  ...all.filter((f) => f.endsWith('.md') && f !== 'README.md'),
+  'officechat-export.json',
 ];
 // 업로드 순서 영향이 없는지 보려고 역순으로 넣는다
 for (const f of files.reverse()) {
