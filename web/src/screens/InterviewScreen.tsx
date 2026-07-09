@@ -27,9 +27,7 @@ export function InterviewScreen({
         <div className="text-lg font-semibold">
           지도를 만들다 발견한, <span className="text-indigo-600">어디에도 기록되지 않은 지식</span>이 있습니다.
         </div>
-        <div className="mt-0.5 text-sm text-neutral-500">
-          답변할 때마다 업무 지도에 새 카드가 추가됩니다. 후임자에게 지도의 마지막 조각이 됩니다.
-        </div>
+        <div className="mt-0.5 text-sm text-neutral-500">답변하면 업무 지도에 카드로 추가됩니다.</div>
         <div className="mt-4">
           <div className="mb-1 flex justify-between text-xs font-medium">
             <span className="text-neutral-500">인수인계 완성도</span>

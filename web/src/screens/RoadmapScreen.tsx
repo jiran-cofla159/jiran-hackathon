@@ -19,9 +19,12 @@ export function RoadmapScreen({ roadmap, map }: { roadmap: RoadmapItem[]; map: W
   return (
     <div className="space-y-2">
       <Card className="!p-5">
-        <div className="text-lg font-semibold">이도현 사원의 첫 한 달 온보딩 로드맵</div>
-        <div className="mt-0.5 text-sm text-neutral-500">
-          긴급도와 업무 주기를 기준으로 자동 설계되었습니다. 전임자 퇴사일: {map.person.lastDay}
+        <div className="text-lg font-semibold">첫 한 달 온보딩 로드맵</div>
+        <div className="mt-1 text-sm text-neutral-600">
+          <span className="font-medium text-indigo-600">언제 · 무엇부터</span> 하면 되는지, 급한 일부터 한 달 뒤까지 시간 순서로 정리한 실행 계획입니다.
+        </div>
+        <div className="mt-1.5 text-xs text-neutral-400">
+          전체 담당 업무·관계자는 <span className="font-medium">업무 지도</span>에서 볼 수 있어요 · 전임자 퇴사일 {map.person.lastDay}
         </div>
       </Card>
 

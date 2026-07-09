@@ -1,9 +1,137 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { InterviewCard, WorkMap } from '../api';
 import { Avatar, Badge, Card, EvidenceChips, urgencyTone } from '../ui';
 
 const cadenceLabel = (c: WorkMap['duties'][number]['cadence']) =>
   ({ weekly: '매주', monthly: '매월', quarterly: '분기', adhoc: '상시' })[c.type];
+
+// AI가 데이터에서 추정한 역할 — 전임자(onSave 전달 시)만 인라인 수정 가능
+function InferredRole({ role, onSave }: { role: string; onSave?: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(role);
+
+  const commit = () => {
+    const v = draft.trim();
+    if (v && v !== role) onSave?.(v);
+    setEditing(false);
+  };
+
+  return (
+    <div className="mt-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone="indigo">AI 추정</Badge>
+        {editing ? (
+          <>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  commit();
+                }
+              }}
+              autoFocus
+              rows={2}
+              className="min-w-0 flex-1 basis-80 resize-y rounded-md border border-indigo-300 px-2.5 py-1.5 text-sm leading-relaxed focus:outline-none"
+            />
+            <button
+              onClick={commit}
+              className="shrink-0 cursor-pointer self-start rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-indigo-700"
+            >
+              저장
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-sm font-medium text-neutral-700">{role}</span>
+            {onSave && (
+              <button
+                onClick={() => {
+                  setDraft(role);
+                  setEditing(true);
+                }}
+                title="추정 프로필 수정"
+                className="cursor-pointer rounded p-0.5 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-600"
+              >
+                ✏️
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      <p className="mt-0.5 text-xs text-neutral-400">수정할 수 있어요.</p>
+    </div>
+  );
+}
+
+// 후임자 지정 공유 — 사내 이메일로 수신자를 특정해야 공유된다 (그 사람만 열람)
+function ShareControl({
+  shared,
+  recipient,
+  onShare,
+}: {
+  shared: boolean;
+  recipient?: string;
+  onShare: (recipient: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+  if (shared) {
+    return (
+      <span className="ml-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700">
+        ✓ {recipient ?? '후임자'} 님에게 공유됨
+      </span>
+    );
+  }
+
+  return (
+    <div className="relative ml-2 flex flex-col items-end gap-1">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="cursor-pointer rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+      >
+        후임자에게 공유
+      </button>
+      <span className="text-[11px] text-neutral-400">🔒 공유 전까지 후임자에게 보이지 않습니다</span>
+      {open && (
+        <div className="absolute right-0 top-12 z-20 w-80 rounded-xl border border-neutral-200 bg-white p-4 text-left shadow-xl">
+          <div className="text-sm font-semibold">인수인계 공유</div>
+          <label className="mt-3 block text-xs font-medium text-neutral-500">받는 사람 (사내 이메일)</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && valid && onShare(email.trim())}
+            placeholder="예: lee@company.com"
+            autoFocus
+            className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+          />
+          <p className="mt-1.5 text-[11px] leading-relaxed text-neutral-400">
+            초대받은 이 계정만 업무 지도와 로드맵을 열람할 수 있습니다.
+          </p>
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              onClick={() => setOpen(false)}
+              className="cursor-pointer rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-600 transition hover:bg-neutral-50"
+            >
+              취소
+            </button>
+            <button
+              disabled={!valid}
+              onClick={() => onShare(email.trim())}
+              className="cursor-pointer rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              초대 보내기
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const GAP_LABEL: Record<InterviewCard['gapType'], string> = {
   undocumented_incident: '기록되지 않은 사건',
@@ -15,10 +143,18 @@ export function WorkMapScreen({
   map,
   interviewCards = [],
   highlightId,
+  inferredRole,
+  onSaveRole,
+  share,
 }: {
   map: WorkMap;
   interviewCards?: InterviewCard[];
   highlightId?: string | null;
+  inferredRole?: string;
+  // 전임자 화면에서만 전달 — 추정 프로필 수정 권한
+  onSaveRole?: (v: string) => void;
+  // 전임자 화면에서만 전달 — 공유 통제권이 전임자에게 있음. recipient: 지정한 후임자
+  share?: { shared: boolean; recipient?: string; onShare: (recipient: string) => void };
 }) {
   const highlightRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -38,33 +174,34 @@ export function WorkMapScreen({
 
   return (
     <div className="space-y-6">
-      <Card className="flex items-center justify-between !p-5">
-        <div>
+      <Card className="flex items-start justify-between gap-6 !p-5">
+        <div className="min-w-0 flex-1">
           <div className="text-lg font-semibold">
             {map.person.name}의 업무 지도
-            <span className="ml-2 text-sm font-normal text-neutral-500">
-              {map.person.team} · 퇴사 {map.person.lastDay}
-            </span>
+            <span className="ml-2 text-sm font-normal text-neutral-500">퇴사 {map.person.lastDay}</span>
           </div>
-          <div className="mt-0.5 text-sm text-neutral-500">
-            활동 데이터에서 자동 추출된 지식입니다. 칩을 누르면 근거 원문을 확인할 수 있습니다.
+          <InferredRole role={inferredRole ?? map.person.team} onSave={onSaveRole} />
+          <div className="mt-1 text-sm text-neutral-600">
+            <span className="font-medium text-indigo-600">무엇을 맡는지</span> — 담당 업무·관계자·진행 중인 일·주의사항을 한눈에 보는 전체 지도입니다.
           </div>
+          <div className="mt-0.5 text-xs text-neutral-400">칩을 누르면 근거 원문을 볼 수 있습니다.</div>
         </div>
-        <div className="flex gap-6">
+        <div className="flex shrink-0 items-center gap-6">
           {stats.map((s) => (
             <div key={s.label} className="text-center">
               <div className="text-2xl font-bold text-indigo-600">{s.n}</div>
-              <div className="text-xs text-neutral-500">{s.label}</div>
+              <div className="whitespace-nowrap text-xs text-neutral-500">{s.label}</div>
             </div>
           ))}
+          {share && (
+            <ShareControl shared={share.shared} recipient={share.recipient} onShare={share.onShare} />
+          )}
         </div>
       </Card>
 
       {interviewCards.length > 0 && (
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-neutral-500">
-            💬 인터뷰로 채워진 지식 — 전임자가 직접 답한, 어디에도 없던 내용
-          </h2>
+          <h2 className="mb-3 text-sm font-semibold text-neutral-500">💬 인터뷰로 채워진 지식</h2>
           <div className="grid grid-cols-2 gap-3">
             {interviewCards.map((c) => (
               <Card

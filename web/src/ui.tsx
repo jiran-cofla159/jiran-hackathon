@@ -7,6 +7,7 @@ export const SOURCE_META: Record<Evidence['source'], { icon: string; label: stri
   jira: { icon: '🎫', label: 'Jira' },
   officenote: { icon: '📝', label: '오피스노트' },
   officechat: { icon: '💭', label: '오피스챗' },
+  interview: { icon: '🎙️', label: '전임자 인터뷰' },
 };
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
