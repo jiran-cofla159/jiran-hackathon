@@ -3,6 +3,12 @@
 !.env.example
 node_modules/
 dist/
-cache/
 .DS_Store
 *.log
+
+# 생성물·업로드 원본 — 실데이터가 섞일 수 있어 절대 커밋 금지 (regenerable)
+cache/
+cache-backup-day1/
+out/
+uploads/
+server/uploads/
